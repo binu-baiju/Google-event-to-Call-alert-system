@@ -18,7 +18,8 @@ export const authOptions: NextAuthOptions = {
             "email",
             "https://www.googleapis.com/auth/calendar.readonly",
           ].join(" "),
-          prompt: "consent", // Ensures we get refresh_token on first sign-in
+          access_type: "offline", // Request refresh token for background access
+          prompt: "consent",     // Always show consent to ensure refresh_token is returned
         },
       },
     }),

@@ -20,6 +20,7 @@ export async function GET() {
         summary: e.summary,
         start: e.start.toISOString(),
         end: e.end.toISOString(),
+        timeZone: e.timeZone,
         htmlLink: e.htmlLink,
       })),
     });

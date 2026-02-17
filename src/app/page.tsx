@@ -36,10 +36,12 @@ export default async function HomePage({ searchParams }: Props) {
         {error && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
             {error === "Callback"
-              ? "Sign-in failed (server error). Run npm run db:push, restart the server, and try again. Check the terminal for details."
+              ? "Sign-in failed due to a server error. Please try again or contact support."
               : error === "OAuthAccountNotLinked"
-                ? "That Google account is not linked yet. Try signing in again—linking is now enabled."
-                : "Sign-in failed. Please try again."}
+                ? "This Google account could not be linked. Please try signing in again."
+                : error === "AccessDenied"
+                  ? "Access denied. Please ensure you have been added as a test user in Google Cloud Console."
+                  : "Sign-in failed. Please try again."}
           </div>
         )}
         <SignInButton />
