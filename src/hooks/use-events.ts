@@ -9,14 +9,17 @@ export const eventKeys = {
   upcoming: ["events", "upcoming"] as const,
 };
 
+/** Stale time for upcoming events (1 min) so refetch isn't too frequent. */
+const UPCOMING_STALE_MS = 60 * 1000;
+
 /**
  * Fetch upcoming calendar events (next 5 minutes).
- * - `enabled: false` so it only runs when manually triggered via `refetch()`.
+ * Fetches on mount and when manually refetched; cached for 1 minute.
  */
 export function useUpcomingEvents() {
   return useQuery({
     queryKey: eventKeys.upcoming,
     queryFn: getUpcomingEvents,
-    enabled: false,
+    staleTime: UPCOMING_STALE_MS,
   });
 }

@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  const windowStart = new Date();
+  const windowEnd = new Date(Date.now() + 5 * 60 * 1000);
+  console.log(
+    `[Cron] Window (events must start in this range): ${windowStart.toISOString()} to ${windowEnd.toISOString()}`,
+  );
   console.log(`[Cron] Checking ${users.length} user(s) for upcoming events`);
 
   const results: {
@@ -94,6 +99,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      if (events.length > 0 && callsPlaced === 0 && skippedDuplicate === events.length) {
+        console.log(
+          `[Cron] User ${user.id}: ${events.length} event(s) in window but all already reminded (skipped duplicate)`,
+        );
+      } else if (events.length === 0) {
+        console.log(`[Cron] User ${user.id}: 0 events in next 5 minutes`);
+      }
       results.push({
         userId: user.id,
         eventsFound: events.length,
