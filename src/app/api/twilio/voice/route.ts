@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
  * Twilio webhook: returns TwiML to speak the calendar reminder.
  * Twilio calls this URL when the outbound call is answered.
  */
-export async function GET(request: NextRequest) {
+function buildTwiml(request: NextRequest): Response {
   const searchParams = request.nextUrl.searchParams;
   const summary = searchParams.get("summary") ?? "Your calendar event";
   const startParam = searchParams.get("start");
@@ -22,6 +22,14 @@ export async function GET(request: NextRequest) {
   return new Response(twiml, {
     headers: { "Content-Type": "application/xml" },
   });
+}
+
+export async function GET(request: NextRequest) {
+  return buildTwiml(request);
+}
+
+export async function POST(request: NextRequest) {
+  return buildTwiml(request);
 }
 
 function escapeXml(unsafe: string): string {
