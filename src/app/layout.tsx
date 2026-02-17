@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Calendar Call Reminders",
-  description: "Get phone call reminders for your Google Calendar events",
+  title: "CalRemind — Calendar Call Reminders",
+  description:
+    "Connect your Google Calendar and receive automated phone call reminders before every event via Twilio.",
 };
 
 export default function RootLayout({
@@ -24,8 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+      >
         <Providers>{children}</Providers>
       </body>
     </html>
