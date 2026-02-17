@@ -3,9 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 import { Phone } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export default async function DashboardLayout({
   children,
@@ -43,15 +42,7 @@ export default async function DashboardLayout({
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session.user.email}
             </span>
-            <Link
-              href="/api/auth/signout"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "text-muted-foreground",
-              )}
-            >
-              Sign out
-            </Link>
+            <SignOutButton />
           </div>
         </div>
       </header>
