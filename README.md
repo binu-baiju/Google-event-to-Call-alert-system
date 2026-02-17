@@ -1,140 +1,239 @@
-# Google Calendar → Call Reminders
+# Google Calendar → Call Alert System
 
-A web app that lets users sign in with Google, grant access to Google Calendar, and receive **automated phone call reminders** (via Twilio) for events starting in the next 5 minutes.
+A full-stack web application that integrates Google OAuth, Google Calendar API, and Twilio to provide automated phone call reminders for upcoming calendar events.
+
+Users sign in with Google, grant Calendar read access, set their phone number, and receive an automated phone call when an event starts within the next 5 minutes.
+
+**Live Demo:** [https://google-event-to-call-alert-system-zeta.vercel.app](https://google-event-to-call-alert-system-zeta.vercel.app)
+
+---
 
 ## Tech Stack
 
-- **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui-style components
-- **Backend:** Next.js API routes (Node.js + TypeScript)
-- **Auth:** NextAuth.js with Google OAuth + Calendar scope
-- **Database:** Prisma + SQLite (dev) / PostgreSQL (production-ready)
-- **Cron:** Vercel Cron (or any scheduler calling the secured cron endpoint)
-- **Calls:** Twilio API
+| Layer | Technology |
+|-------|------------|
+| **Framework** | Next.js 15 (App Router) |
+| **Language** | TypeScript |
+| **Styling** | Tailwind CSS + shadcn/ui components |
+| **Authentication** | NextAuth.js v4 (Google OAuth) |
+| **Database** | PostgreSQL (Neon) via Prisma ORM |
+| **Calendar** | Google Calendar API (googleapis) |
+| **Phone Calls** | Twilio Programmable Voice |
+| **Hosting** | Vercel |
+| **Cron** | Vercel Cron / External scheduler |
+
+---
 
 ## Features
 
-- Google OAuth login with Calendar read access
-- Store and refresh Google tokens (refresh token flow)
-- User can set a phone number (E.164) for call reminders
-- Cron job runs every 5 minutes: for each user with a phone number, fetches events in the next 5 minutes and places a Twilio call per event (idempotent: no duplicate calls for the same event)
-- Twilio speaks the event title and start time using TwiML
+- **Google OAuth** — Secure login with Google, requesting `calendar.readonly` scope
+- **Token Refresh** — Automatically refreshes expired Google access tokens using stored refresh tokens
+- **Phone Number Management** — Users can set/update their phone number (validated to E.164 format)
+- **Event Detection** — Fetches upcoming events from Google Calendar starting within the next 5 minutes
+- **Automated Phone Calls** — Twilio calls the user and speaks the event name and start time
+- **Idempotent Reminders** — `ReminderSent` table prevents duplicate calls for the same event
+- **Call History** — Dashboard displays recent call reminders for transparency
+- **Edge Case Handling:**
+  - All-day events are automatically skipped (no specific time to call for)
+  - Cancelled events are filtered out
+  - Token refresh failures handled gracefully (user is skipped, not crashed)
+  - Event timezone from Google Calendar is used for accurate spoken time
+  - Individual call failures don't block other users or events
+
+---
 
 ## Prerequisites
 
-- Node.js 18+
-- [Google Cloud Console](https://console.cloud.google.com/): OAuth 2.0 Client (Web), with Calendar API enabled
-- [Twilio](https://www.twilio.com/) account: Account SID, Auth Token, and a Twilio phone number for outbound calls
+- **Node.js** 18+
+- **Google Cloud Console** — OAuth 2.0 Client ID (Web) with Calendar API enabled
+- **Twilio** account — Account SID, Auth Token, and a phone number for outbound calls
+- **PostgreSQL** database (Neon recommended for Vercel deployment)
+
+---
 
 ## Setup
 
 ### 1. Clone and install
 
 ```bash
-cd WebCastle
+git clone https://github.com/binu-baiju/Google-event-to-Call-alert-system.git
+cd Google-event-to-Call-alert-system
 npm install
 ```
 
 ### 2. Environment variables
 
-Copy the example env and fill in values:
-
 ```bash
 cp .env.example .env
 ```
 
+Fill in the values:
+
 | Variable | Description |
 |----------|-------------|
-| `NEXTAUTH_URL` | App URL (e.g. `http://localhost:3000`) |
+| `NEXTAUTH_URL` | App URL (`http://localhost:3000` for local) |
 | `NEXTAUTH_SECRET` | Random secret: `openssl rand -base64 32` |
-| `GOOGLE_CLIENT_ID` | From Google Cloud Console → APIs & Services → Credentials |
+| `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials |
 | `GOOGLE_CLIENT_SECRET` | Same place |
-| `TWILIO_ACCOUNT_SID` | Twilio Console |
-| `TWILIO_AUTH_TOKEN` | Twilio Console |
-| `TWILIO_PHONE_NUMBER` | Your Twilio number (e.g. +1234567890) |
-| `CRON_SECRET` | Random secret for securing the cron endpoint |
-| `DATABASE_URL` | Prisma DB URL, e.g. `file:./dev.db` for SQLite |
+| `TWILIO_ACCOUNT_SID` | From Twilio Console |
+| `TWILIO_AUTH_TOKEN` | From Twilio Console |
+| `TWILIO_PHONE_NUMBER` | Your Twilio number in E.164 (e.g. `+1234567890`) |
+| `CRON_SECRET` | Random secret: `openssl rand -base64 32` |
+| `DATABASE_URL` | PostgreSQL connection string |
 
-**Google Cloud:**
+### 3. Google Cloud setup
 
-- Create OAuth 2.0 Client ID (Web application).
-- Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google` (and your production URL when deployed).
-- Enable **Google Calendar API** for the project.
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (or select existing)
+3. Navigate to **APIs & Services → Library** and enable **Google Calendar API**
+4. Go to **APIs & Services → Credentials** → Create **OAuth 2.0 Client ID** (Web application)
+5. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+6. Go to **OAuth consent screen** → Add your email as a test user (required while app is in "Testing" mode)
 
-### 3. Database
+### 4. Database setup
 
 ```bash
-npm run db:generate
-npm run db:push
+npm run db:generate   # Generate Prisma client
+npm run db:push       # Create database tables
 ```
 
-### 4. Run the app
+### 5. Run the app
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), sign in with Google, allow Calendar access, then go to the dashboard and add your phone number (E.164, e.g. `+1234567890`).
+Open [http://localhost:3000](http://localhost:3000), sign in with Google, allow Calendar access, and set your phone number on the dashboard.
 
-### 5. Cron (production / local testing)
+### 6. Test the cron job
 
-The app exposes a **secured** cron endpoint that performs the reminder logic:
-
-- **URL:** `GET /api/cron/check-events`
-- **Auth:** `Authorization: Bearer <CRON_SECRET>`
-
-**Vercel:** The repo includes `vercel.json` so the cron runs every 5 minutes. Set the `CRON_SECRET` env var in your Vercel project; Vercel sends it as `Authorization: Bearer <CRON_SECRET>` when invoking the cron.
-
-**Local / other platforms:** Call the endpoint every 5 minutes with the same header, e.g.:
+The cron endpoint checks for upcoming events and triggers Twilio calls:
 
 ```bash
-curl -H "Authorization: Bearer YOUR_CRON_SECRET" "http://localhost:3000/api/cron/check-events"
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/check-events
 ```
 
-## Project structure
+> **Note:** For Twilio to make calls, the app must be deployed to a publicly accessible URL (Twilio trial accounts can only call verified phone numbers).
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Next.js App                         │
+│                                                          │
+│  ┌──────────┐    ┌────────────┐    ┌──────────────────┐ │
+│  │  Pages    │    │ API Routes │    │  Cron Endpoint   │ │
+│  │  (React)  │    │            │    │  /api/cron/      │ │
+│  │           │    │ /api/auth/ │    │  check-events    │ │
+│  │ - Home    │    │ /api/user/ │    │                  │ │
+│  │ - Dash    │    │ /api/cal/  │    │ ┌──────────────┐ │ │
+│  └──────────┘    └────────────┘    │ │ For each user │ │ │
+│                                     │ │ with phone:   │ │ │
+│                                     │ │               │ │ │
+│                                     │ │ 1. Get events │ │ │
+│                                     │ │ 2. Check dups │ │ │
+│                                     │ │ 3. Call via   │ │ │
+│                                     │ │    Twilio     │ │ │
+│                                     │ │ 4. Record it  │ │ │
+│                                     │ └──────────────┘ │ │
+│                                     └──────────────────┘ │
+└────────────┬──────────────┬──────────────┬───────────────┘
+             │              │              │
+     ┌───────▼──────┐ ┌────▼─────┐ ┌──────▼──────┐
+     │ Google OAuth  │ │ Postgres │ │   Twilio    │
+     │ + Calendar    │ │  (Neon)  │ │   Voice     │
+     │    API        │ │          │ │    API      │
+     └──────────────┘ └──────────┘ └─────────────┘
+```
+
+---
+
+## Project Structure
 
 ```
 src/
   app/
     api/
-      auth/[...nextauth]/   # NextAuth routes
-      calendar/events/      # GET upcoming events (auth)
-      cron/check-events/   # Cron: check calendars, place Twilio calls (CRON_SECRET)
-      twilio/voice/        # Twilio webhook: TwiML for reminder message
-      user/phone/          # GET/PUT user phone number (auth)
-    dashboard/             # Protected dashboard (phone input, upcoming events)
-    layout.tsx
-    page.tsx               # Landing / sign-in
+      auth/[...nextauth]/     # NextAuth.js OAuth routes
+      calendar/events/         # GET: Upcoming events for current user
+      cron/check-events/       # GET: Cron — check calendars, place calls (secured)
+      reminders/history/       # GET: Call history for current user
+      twilio/voice/            # GET/POST: Twilio TwiML webhook
+      user/phone/              # GET/PUT: User phone number (E.164)
+    dashboard/
+      layout.tsx               # Auth-protected layout with navbar
+      page.tsx                 # Phone input, upcoming events, call history
+    layout.tsx                 # Root layout (fonts, providers)
+    page.tsx                   # Landing page / sign-in
   components/
-    ui/                    # Button, Input, Card, Label
+    ui/                        # Button, Input, Card, Label (shadcn/ui style)
+    providers.tsx              # NextAuth SessionProvider wrapper
+    sign-in-button.tsx         # Google sign-in button (client component)
   lib/
-    auth.ts                # NextAuth config (Google + Calendar scope)
-    db.ts                  # Prisma client
-    google-calendar.ts     # Calendar API + token refresh
-    twilio.ts              # Twilio client + placeReminderCall
-    utils.ts               # cn, phone validation
+    auth.ts                    # NextAuth config (Google + Calendar scope)
+    db.ts                      # Prisma client singleton
+    env.ts                     # Zod environment variable validation
+    google-calendar.ts         # Calendar API: token refresh + event fetching
+    twilio.ts                  # Twilio: inline TwiML + call placement
+    utils.ts                   # cn(), phone validation helpers
 prisma/
-  schema.prisma            # User, Account, Session, ReminderSent
-vercel.json                # Cron schedule
+  schema.prisma                # User, Account, Session, ReminderSent models
+vercel.json                    # Vercel deployment config
 ```
 
-## Security and edge cases
+---
 
-- **Cron endpoint** is protected by `CRON_SECRET`; no secret → 401.
-- **Phone numbers** validated and normalized to E.164 before save.
-- **Idempotency:** `ReminderSent` table ensures we don’t call the same user twice for the same event (same `userId`, `eventId`, `startAt`).
-- **Google tokens:** Access token is refreshed when expired using the stored refresh token (with `prompt: "consent"` on first sign-in to get refresh token).
-- **Session:** Database-backed sessions; `session.user.id` set in callback for API routes.
+## API Routes
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET/POST` | `/api/auth/*` | Public | NextAuth.js OAuth handlers |
+| `GET` | `/api/calendar/events` | Session | Fetch upcoming events (next 5 min) |
+| `GET/PUT` | `/api/user/phone` | Session | Get/update phone number |
+| `GET` | `/api/cron/check-events` | CRON_SECRET | Check events and trigger calls |
+| `GET` | `/api/reminders/history` | Session | Recent call reminder history |
+| `GET/POST` | `/api/twilio/voice` | Public | TwiML webhook for Twilio |
+
+---
+
+## Security Considerations
+
+- **Cron endpoint** protected by `CRON_SECRET` — returns 401 without valid Bearer token
+- **Phone numbers** validated and normalized to E.164 format with Zod
+- **Google tokens** stored in the database via NextAuth Prisma adapter; access tokens refreshed automatically
+- **Session** backed by database (not JWT) for revocability
+- **Environment variables** validated at runtime using Zod schemas
+- **No sensitive data** exposed to the client; all API calls are server-side authenticated
+
+---
+
+## Deployment (Vercel)
+
+1. Push code to GitHub
+2. Import project in [Vercel](https://vercel.com)
+3. Add environment variables in Vercel project settings
+4. Add production redirect URI in Google Cloud Console:
+   `https://your-domain.vercel.app/api/auth/callback/google`
+5. Database tables are auto-created during build (`prisma db push` runs in the build script)
+6. For cron scheduling, use [cron-job.org](https://cron-job.org) (free) to call the cron endpoint every 5 minutes with the `Authorization: Bearer <CRON_SECRET>` header
+
+---
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start dev server (Turbopack) |
-| `npm run build` | Production build |
+| `npm run build` | Production build (generates Prisma client + pushes schema) |
 | `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
 | `npm run db:generate` | Generate Prisma client |
-| `npm run db:push` | Push schema (no migrations) |
-| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:push` | Push schema to database |
+| `npm run db:studio` | Open Prisma Studio GUI |
+
+---
 
 ## License
 
