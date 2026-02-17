@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -22,146 +22,89 @@ import {
   PhoneCall,
   CalendarClock,
 } from "lucide-react";
-
-interface CalendarEvent {
-  id: string;
-  summary: string;
-  start: string;
-  end: string;
-}
-
-interface ReminderRecord {
-  id: string;
-  eventId: string;
-  eventStartAt: string;
-  calledAt: string;
-}
+import { usePhone, useUpdatePhone } from "@/hooks/use-phone";
+import { useUpcomingEvents } from "@/hooks/use-events";
+import { useReminderHistory } from "@/hooks/use-reminders";
 
 export default function DashboardPage() {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [savedPhone, setSavedPhone] = useState<string | null>(null);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [reminders, setReminders] = useState<ReminderRecord[]>([]);
-  const [loadingPhone, setLoadingPhone] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [loadingEvents, setLoadingEvents] = useState(false);
-  const [loadingReminders, setLoadingReminders] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
 
-  useEffect(() => {
-    fetch("/api/user/phone")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.phoneNumber) {
-          setSavedPhone(data.phoneNumber);
-          setPhoneNumber(data.phoneNumber);
-        }
-        setLoadingPhone(false);
-      })
-      .catch(() => setLoadingPhone(false));
-  }, []);
+  // ── React Query hooks ────────────────────────────────────────────────
+  const phone = usePhone();
+  const updatePhone = useUpdatePhone();
+  const events = useUpcomingEvents();
+  const reminders = useReminderHistory();
 
-  const fetchReminders = useCallback(async () => {
-    setLoadingReminders(true);
-    try {
-      const res = await fetch("/api/reminders/history");
-      const data = await res.json();
-      if (res.ok) {
-        setReminders(data.reminders ?? []);
-      }
-    } catch {
-      // Silently fail
-    }
-    setLoadingReminders(false);
-  }, []);
+  // Sync input with fetched phone on first load
+  const savedPhone = phone.data?.phoneNumber ?? null;
+  if (phone.isSuccess && phoneInput === "" && savedPhone) {
+    setPhoneInput(savedPhone);
+  }
 
-  useEffect(() => {
-    fetchReminders();
-  }, [fetchReminders]);
-
+  // ── Handlers ─────────────────────────────────────────────────────────
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setMessage(null);
 
-    const trimmed = phoneNumber.trim();
+    const trimmed = phoneInput.trim();
     if (!trimmed) {
       setMessage({ type: "error", text: "Please enter a phone number." });
-      setSaving(false);
       return;
     }
 
-    try {
-      const res = await fetch("/api/user/phone", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: trimmed }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ type: "error", text: data.error ?? "Failed to save" });
-        setSaving(false);
-        return;
-      }
-      setSavedPhone(data.phoneNumber);
-      setPhoneNumber(data.phoneNumber);
-      setMessage({
-        type: "success",
-        text: "Phone number saved successfully.",
-      });
-    } catch {
-      setMessage({ type: "error", text: "Network error. Please try again." });
-    }
-    setSaving(false);
-  };
-
-  const fetchUpcoming = async () => {
-    setLoadingEvents(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/calendar/events");
-      const data = await res.json();
-      if (!res.ok) {
+    updatePhone.mutate(trimmed, {
+      onSuccess: (data) => {
+        setPhoneInput(data.phoneNumber ?? "");
+        setMessage({
+          type: "success",
+          text: "Phone number saved successfully.",
+        });
+      },
+      onError: (err) => {
         setMessage({
           type: "error",
-          text: data.error ?? "Failed to load events",
+          text: err instanceof Error ? err.message : "Failed to save.",
         });
-        setLoadingEvents(false);
-        return;
-      }
-      setEvents(data.events ?? []);
-      if ((data.events ?? []).length === 0) {
+      },
+    });
+  };
+
+  const handleRefreshEvents = () => {
+    setMessage(null);
+    events.refetch().then((result) => {
+      if (result.data && result.data.events.length === 0) {
         setMessage({
           type: "success",
           text: "No events in the next 5 minutes.",
         });
       }
-    } catch {
-      setMessage({ type: "error", text: "Network error. Please try again." });
-    }
-    setLoadingEvents(false);
+    });
   };
 
-  const formatTime = (iso: string) => {
-    return new Date(iso).toLocaleString(undefined, {
+  // ── Helpers ──────────────────────────────────────────────────────────
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
     });
-  };
 
   const formatRelative = (iso: string) => {
-    const diff = new Date(iso).getTime() - Date.now();
-    const mins = Math.round(diff / 60000);
+    const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
     if (mins <= 0) return "starting";
     if (mins === 1) return "in 1 min";
     return `in ${mins} min`;
   };
+
+  // ── Derived data ─────────────────────────────────────────────────────
+  const eventList = events.data?.events ?? [];
+  const reminderList = reminders.data?.reminders ?? [];
 
   return (
     <div className="space-y-8">
@@ -184,7 +127,7 @@ export default function DashboardPage() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Phone</p>
               <p className="truncate text-sm font-medium">
-                {loadingPhone ? "..." : savedPhone ?? "Not set"}
+                {phone.isLoading ? "..." : savedPhone ?? "Not set"}
               </p>
             </div>
           </div>
@@ -197,7 +140,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs text-muted-foreground">Upcoming</p>
               <p className="text-sm font-medium">
-                {events.length} event{events.length !== 1 && "s"}
+                {eventList.length} event{eventList.length !== 1 && "s"}
               </p>
             </div>
           </div>
@@ -209,7 +152,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Calls Sent</p>
-              <p className="text-sm font-medium">{reminders.length}</p>
+              <p className="text-sm font-medium">{reminderList.length}</p>
             </div>
           </div>
         </div>
@@ -241,7 +184,7 @@ export default function DashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loadingPhone ? (
+          {phone.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading...
@@ -257,13 +200,17 @@ export default function DashboardPage() {
                     id="phone"
                     type="tel"
                     placeholder="+919876543210"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    disabled={saving}
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    disabled={updatePhone.isPending}
                   />
                 </div>
-                <Button type="submit" disabled={saving} className="shrink-0">
-                  {saving ? (
+                <Button
+                  type="submit"
+                  disabled={updatePhone.isPending}
+                  className="shrink-0"
+                >
+                  {updatePhone.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Saving...
@@ -297,11 +244,11 @@ export default function DashboardPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={fetchUpcoming}
-                disabled={loadingEvents}
+                onClick={handleRefreshEvents}
+                disabled={events.isFetching}
                 className="h-8 gap-1.5 text-xs text-muted-foreground"
               >
-                {loadingEvents ? (
+                {events.isFetching ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3 w-3" />
@@ -314,9 +261,9 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {events.length > 0 ? (
+            {eventList.length > 0 ? (
               <ul className="space-y-2">
-                {events.map((e) => (
+                {eventList.map((e) => (
                   <li
                     key={e.id}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3"
@@ -360,11 +307,11 @@ export default function DashboardPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={fetchReminders}
-                disabled={loadingReminders}
+                onClick={() => reminders.refetch()}
+                disabled={reminders.isFetching}
                 className="h-8 gap-1.5 text-xs text-muted-foreground"
               >
-                {loadingReminders ? (
+                {reminders.isFetching ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3 w-3" />
@@ -377,9 +324,9 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {reminders.length > 0 ? (
+            {reminderList.length > 0 ? (
               <ul className="space-y-2">
-                {reminders.map((r) => (
+                {reminderList.map((r) => (
                   <li
                     key={r.id}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3"
