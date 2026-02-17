@@ -158,7 +158,7 @@ export default function DashboardPage() {
   const formatRelative = (iso: string) => {
     const diff = new Date(iso).getTime() - Date.now();
     const mins = Math.round(diff / 60000);
-    if (mins <= 0) return "now";
+    if (mins <= 0) return "starting";
     if (mins === 1) return "in 1 min";
     return `in ${mins} min`;
   };

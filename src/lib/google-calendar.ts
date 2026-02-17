@@ -99,6 +99,7 @@ export async function getUpcomingEvents(userId: string): Promise<CalendarEvent[]
   });
 
   const items = res.data.items ?? [];
+  const now = timeMin.getTime();
 
   return items
     .filter((e) => {
@@ -108,6 +109,8 @@ export async function getUpcomingEvents(userId: string): Promise<CalendarEvent[]
       if (e.status === "cancelled") return false;
       // Skip events without a valid ID
       if (!e.id) return false;
+      // Skip events that have already started (only include future starts)
+      if (new Date(e.start.dateTime).getTime() < now) return false;
       return true;
     })
     .map((e) => ({
