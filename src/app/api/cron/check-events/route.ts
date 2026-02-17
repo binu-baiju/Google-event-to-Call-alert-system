@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUpcomingEvents } from "@/lib/google-calendar";
 import { placeReminderCall } from "@/lib/twilio";
+import { getUsersWithPhone } from "@/lib/queries/user";
+import {
+  hasReminderBeenSent,
+  createReminderRecord,
+} from "@/lib/queries/reminder";
 
 /**
- * Cron endpoint: every run, find users with a phone number, get their
- * calendar events in the next 5 minutes, and place a Twilio call for each
- * event we haven't already reminded (idempotent via ReminderSent).
+ * Cron endpoint: find users with a phone number, get their calendar events
+ * in the next 5 minutes, and place a Twilio call for each un-reminded event.
  *
  * Security: Requires Bearer token matching CRON_SECRET.
- * Idempotency: Tracks sent reminders in the ReminderSent table to prevent
- *              duplicate calls for the same event.
- * Edge cases handled:
- *  - Users without a phone number are skipped
- *  - All-day events are filtered out at the Calendar layer
- *  - Cancelled events are filtered out at the Calendar layer
- *  - Token refresh failures are handled gracefully (returns empty events)
- *  - Individual call failures don't block other users/events
+ * Idempotency: Tracks sent reminders via ReminderSent to prevent duplicates.
  */
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -27,13 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Only fetch users who have saved a phone number
-  const users = await prisma.user.findMany({
-    where: {
-      phoneNumber: { not: null },
-    },
-    select: { id: true, phoneNumber: true },
-  });
+  const users = await getUsersWithPhone();
 
   if (users.length === 0) {
     console.log("[Cron] No users with phone numbers found");
@@ -68,16 +58,11 @@ export async function GET(request: NextRequest) {
       const events = await getUpcomingEvents(user.id);
 
       for (const event of events) {
-        // Idempotency check: skip if we already sent a reminder for this event
-        const alreadySent = await prisma.reminderSent.findUnique({
-          where: {
-            userId_eventId_startAt: {
-              userId: user.id,
-              eventId: event.id,
-              startAt: event.start,
-            },
-          },
-        });
+        const alreadySent = await hasReminderBeenSent(
+          user.id,
+          event.id,
+          event.start,
+        );
 
         if (alreadySent) {
           skippedDuplicate++;
@@ -92,22 +77,20 @@ export async function GET(request: NextRequest) {
             event.timeZone,
           );
 
-          // Record the reminder to prevent duplicates on next cron run
-          await prisma.reminderSent.create({
-            data: {
-              userId: user.id,
-              eventId: event.id,
-              startAt: event.start,
-            },
-          });
+          await createReminderRecord(user.id, event.id, event.start);
 
           callsPlaced++;
           totalCalls++;
-          console.log(`[Cron] Reminder sent: user=${user.id}, event="${event.summary}", callSid=${callSid}`);
+          console.log(
+            `[Cron] Reminder sent: user=${user.id}, event="${event.summary}", callSid=${callSid}`,
+          );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           errors.push(`Event "${event.summary}" (${event.id}): ${msg}`);
-          console.error(`[Cron] Call failed: user=${user.id}, event=${event.id}:`, err);
+          console.error(
+            `[Cron] Call failed: user=${user.id}, event=${event.id}:`,
+            err,
+          );
         }
       }
 
@@ -132,7 +115,9 @@ export async function GET(request: NextRequest) {
   }
 
   const durationMs = Date.now() - startTime;
-  console.log(`[Cron] Completed in ${durationMs}ms: ${users.length} users, ${totalCalls} calls placed`);
+  console.log(
+    `[Cron] Completed in ${durationMs}ms: ${users.length} users, ${totalCalls} calls placed`,
+  );
 
   return NextResponse.json({
     ok: true,

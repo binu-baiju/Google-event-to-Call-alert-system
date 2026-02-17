@@ -1,114 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Phone,
-  Calendar,
-  Loader2,
-  Clock,
-  CheckCircle2,
-  RefreshCw,
-  PhoneCall,
-  CalendarClock,
-} from "lucide-react";
-import { usePhone, useUpdatePhone } from "@/hooks/use-phone";
+import { StatusCards } from "@/components/dashboard/status-cards";
+import { PhoneForm } from "@/components/dashboard/phone-form";
+import { EventList } from "@/components/dashboard/event-list";
+import { CallHistory } from "@/components/dashboard/call-history";
+import { usePhone } from "@/hooks/use-phone";
 import { useUpcomingEvents } from "@/hooks/use-events";
 import { useReminderHistory } from "@/hooks/use-reminders";
 
 export default function DashboardPage() {
-  const [phoneInput, setPhoneInput] = useState("");
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-
-  // ── React Query hooks ────────────────────────────────────────────────
   const phone = usePhone();
-  const updatePhone = useUpdatePhone();
   const events = useUpcomingEvents();
   const reminders = useReminderHistory();
 
-  // Sync input with fetched phone on first load
-  const savedPhone = phone.data?.phoneNumber ?? null;
-  if (phone.isSuccess && phoneInput === "" && savedPhone) {
-    setPhoneInput(savedPhone);
-  }
-
-  // ── Handlers ─────────────────────────────────────────────────────────
-  const handleSavePhone = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
-
-    const trimmed = phoneInput.trim();
-    if (!trimmed) {
-      setMessage({ type: "error", text: "Please enter a phone number." });
-      return;
-    }
-
-    updatePhone.mutate(trimmed, {
-      onSuccess: (data) => {
-        setPhoneInput(data.phoneNumber ?? "");
-        setMessage({
-          type: "success",
-          text: "Phone number saved successfully.",
-        });
-      },
-      onError: (err) => {
-        setMessage({
-          type: "error",
-          text: err instanceof Error ? err.message : "Failed to save.",
-        });
-      },
-    });
-  };
-
-  const handleRefreshEvents = () => {
-    setMessage(null);
-    events.refetch().then((result) => {
-      if (result.data && result.data.events.length === 0) {
-        setMessage({
-          type: "success",
-          text: "No events in the next 5 minutes.",
-        });
-      }
-    });
-  };
-
-  // ── Helpers ──────────────────────────────────────────────────────────
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-
-  const formatRelative = (iso: string) => {
-    const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
-    if (mins <= 0) return "starting";
-    if (mins === 1) return "in 1 min";
-    return `in ${mins} min`;
-  };
-
-  // ── Derived data ─────────────────────────────────────────────────────
-  const eventList = events.data?.events ?? [];
-  const reminderList = reminders.data?.reminders ?? [];
-
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -117,245 +23,18 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Status Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Phone className="h-4 w-4 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Phone</p>
-              <p className="truncate text-sm font-medium">
-                {phone.isLoading ? "..." : savedPhone ?? "Not set"}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
-              <CalendarClock className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Upcoming</p>
-              <p className="text-sm font-medium">
-                {eventList.length} event{eventList.length !== 1 && "s"}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
-              <PhoneCall className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Calls Sent</p>
-              <p className="text-sm font-medium">{reminderList.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <StatusCards
+        phoneLoading={phone.isLoading}
+        savedPhone={phone.data?.phoneNumber ?? null}
+        eventCount={events.data?.events.length ?? 0}
+        reminderCount={reminders.data?.reminders.length ?? 0}
+      />
 
-      {/* Alert */}
-      {message && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-success/20 bg-success/5 text-success"
-              : "border-destructive/20 bg-destructive/5 text-destructive"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
+      <PhoneForm />
 
-      {/* Phone number */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Phone className="h-4 w-4 text-muted-foreground" />
-            Phone Number
-          </CardTitle>
-          <CardDescription>
-            Enter your number in E.164 format. We will call this number when an
-            event starts within 5 minutes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {phone.isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading...
-            </div>
-          ) : (
-            <form onSubmit={handleSavePhone} className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex-1">
-                  <Label htmlFor="phone" className="sr-only">
-                    Phone number
-                  </Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="+919876543210"
-                    value={phoneInput}
-                    onChange={(e) => setPhoneInput(e.target.value)}
-                    disabled={updatePhone.isPending}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={updatePhone.isPending}
-                  className="shrink-0"
-                >
-                  {updatePhone.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save number"
-                  )}
-                </Button>
-              </div>
-              {savedPhone && (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <CheckCircle2 className="h-3 w-3 text-success" />
-                  Active: {savedPhone}
-                </p>
-              )}
-            </form>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Two-column layout for events and history */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Upcoming events */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                Upcoming Events
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefreshEvents}
-                disabled={events.isFetching}
-                className="h-8 gap-1.5 text-xs text-muted-foreground"
-              >
-                {events.isFetching ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3 w-3" />
-                )}
-                Refresh
-              </Button>
-            </div>
-            <CardDescription>
-              Events starting in the next 5 minutes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {eventList.length > 0 ? (
-              <ul className="space-y-2">
-                {eventList.map((e) => (
-                  <li
-                    key={e.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {e.summary}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatTime(e.start)}
-                      </p>
-                    </div>
-                    <Badge variant="warning" className="shrink-0">
-                      {formatRelative(e.start)}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Calendar className="mb-3 h-8 w-8 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">
-                  No upcoming events
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground/70">
-                  Click refresh to check your calendar
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Call history */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                Call History
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => reminders.refetch()}
-                disabled={reminders.isFetching}
-                className="h-8 gap-1.5 text-xs text-muted-foreground"
-              >
-                {reminders.isFetching ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3 w-3" />
-                )}
-                Refresh
-              </Button>
-            </div>
-            <CardDescription>
-              Recent call reminders sent to your phone.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {reminderList.length > 0 ? (
-              <ul className="space-y-2">
-                {reminderList.map((r) => (
-                  <li
-                    key={r.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-                      <span className="text-sm text-muted-foreground">
-                        Event at {formatTime(r.eventStartAt)}
-                      </span>
-                    </div>
-                    <span className="shrink-0 text-xs text-muted-foreground/70">
-                      {formatTime(r.calledAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <PhoneCall className="mb-3 h-8 w-8 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">
-                  No calls sent yet
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground/70">
-                  Calls appear here after the cron job triggers
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <EventList />
+        <CallHistory />
       </div>
     </div>
   );

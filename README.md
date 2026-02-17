@@ -8,6 +8,21 @@ Users sign in with Google, grant Calendar read access, set their phone number, a
 
 ---
 
+## Assignment requirements (mapping)
+
+| Requirement | Implementation |
+|-------------|----------------|
+| **Scalable platform** | Vercel + PostgreSQL (Neon); serverless API routes |
+| **Google OAuth + Calendar API** | NextAuth.js Google provider; `calendar.readonly`; token refresh in `src/lib/google-calendar.ts` |
+| **Twilio for phone call notifications** | `src/lib/twilio.ts` (inline TwiML); `/api/cron/check-events` triggers calls |
+| **Next.js 15 (App Router) + TypeScript** | App Router throughout; full TypeScript |
+| **Tailwind CSS + shadcn/ui** | Tailwind + shadcn-style components in `src/components/ui/` |
+| **Backend: Node.js + TypeScript** | API routes in `src/app/api/`; Prisma, NextAuth, server-side logic |
+| **Clean, well-structured code** | `src/lib/api/` (Axios + services), `src/hooks/` (React Query), `src/lib/validations/` (Zod), `src/types/` |
+| **Security** | CRON_SECRET for cron; session auth; E.164 validation (Zod + server); no secrets in client |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -15,12 +30,15 @@ Users sign in with Google, grant Calendar read access, set their phone number, a
 | **Framework** | Next.js 15 (App Router) |
 | **Language** | TypeScript |
 | **Styling** | Tailwind CSS + shadcn/ui components |
+| **Forms & validation** | React Hook Form, Zod, @hookform/resolvers |
+| **Notifications** | Sonner (toast) |
+| **Data fetching** | TanStack React Query, Axios |
 | **Authentication** | NextAuth.js v4 (Google OAuth) |
 | **Database** | PostgreSQL (Neon) via Prisma ORM |
 | **Calendar** | Google Calendar API (googleapis) |
 | **Phone Calls** | Twilio Programmable Voice |
 | **Hosting** | Vercel |
-| **Cron** | Vercel Cron / External scheduler |
+| **Cron** | External scheduler (e.g. cron-job.org) |
 
 ---
 
@@ -33,6 +51,7 @@ Users sign in with Google, grant Calendar read access, set their phone number, a
 - **Automated Phone Calls** — Twilio calls the user and speaks the event name and start time
 - **Idempotent Reminders** — `ReminderSent` table prevents duplicate calls for the same event
 - **Call History** — Dashboard displays recent call reminders for transparency
+- **Forms & validation** — React Hook Form + Zod (e.g. phone form with E.164); Sonner for toast notifications
 - **Edge Case Handling:**
   - All-day events are automatically skipped (no specific time to call for)
   - Cancelled events are filtered out
