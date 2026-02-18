@@ -4,7 +4,7 @@ A full-stack web application that integrates Google OAuth, Google Calendar API, 
 
 Users sign in with Google, grant Calendar read access, set their phone number, and receive an automated phone call when an event starts within the next 5 minutes.
 
-The full flow (sign-in, cron-triggered calls, Twilio) requires the app to be deployed (e.g. to Vercel); see the Deployment section.
+**The full flow (sign-in, cron-triggered calls, Twilio) requires the app to be deployed (e.g. to Vercel); see the Deployment section.**
 
 **Live Demo:** [https://google-event-to-call-alert-system-zeta.vercel.app](https://google-event-to-call-alert-system-zeta.vercel.app)
 
