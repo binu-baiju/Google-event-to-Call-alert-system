@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 import { useUpcomingEvents } from "@/hooks/use-events";
-import { formatTime, formatRelative } from "@/lib/format";
+
+import { formatTime, formatRelative } from "../../lib/format";
 
 export function EventList() {
   const events = useUpcomingEvents();
@@ -57,9 +58,7 @@ export function EventList() {
         {events.isError ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="mb-3 h-8 w-8 text-destructive/50" />
-            <p className="text-sm text-destructive">
-              Failed to load events
-            </p>
+            <p className="text-sm text-destructive">Failed to load events</p>
             <Button
               variant="ghost"
               size="sm"
@@ -91,9 +90,7 @@ export function EventList() {
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Calendar className="mb-3 h-8 w-8 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">
-              No upcoming events
-            </p>
+            <p className="text-sm text-muted-foreground">No upcoming events</p>
             <p className="mt-1 text-xs text-muted-foreground/70">
               Click refresh to check your calendar
             </p>

@@ -54,9 +54,7 @@ export function CallHistory() {
         {reminders.isError ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="mb-3 h-8 w-8 text-destructive/50" />
-            <p className="text-sm text-destructive">
-              Failed to load history
-            </p>
+            <p className="text-sm text-destructive">Failed to load history</p>
             <Button
               variant="ghost"
               size="sm"
