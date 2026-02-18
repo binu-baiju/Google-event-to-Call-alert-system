@@ -131,6 +131,7 @@ The cron endpoint checks for upcoming events and triggers Twilio calls:
 ```bash
 curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/check-events
 ```
+When setting up the cron on cron-job.org (or similar), configure it to run every 1 minute and send the request with header Authorization: Bearer <CRON_SECRET>. Running every minute ensures events in the 5-minute window are reliably detected.
 
 > **Note:** For Twilio to make calls, the app must be deployed to a publicly accessible URL (Twilio trial accounts can only call verified phone numbers).
 
