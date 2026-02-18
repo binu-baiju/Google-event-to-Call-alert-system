@@ -136,24 +136,6 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/
 
 ---
 
-## Troubleshooting
-
-### Cron runs but "0 calls placed"
-
-The cron only places a call when an event **starts within the next 5 minutes** (from the server’s time, usually UTC). In Vercel logs you’ll see:
-
-- **`[Cron] Window ... to ...`** — The exact time range used. Your event’s start time (in UTC) must fall inside this window.
-- **`User <id>: 0 events in next 5 minutes`** — No events in that window (e.g. event is later, or already started).
-- **`User <id>: N event(s) in window but all already reminded`** — Events were in the window but reminders were already sent (idempotency).
-
-So: create a test event that starts in **under 5 minutes** from when the cron runs, or run the cron every 1–2 minutes so it catches the window.
-
-### `DEP0169 DeprecationWarning: url.parse()`
-
-This comes from a dependency (e.g. NextAuth or a transitive package), not from this repo. It’s a Node.js deprecation and does not break the app. You can ignore it or run with `node --trace-deprecation` to see the source; upgrading the dependency when a fix is released will remove it.
-
----
-
 ## Architecture
 
 ```
